@@ -30,6 +30,26 @@ let connectionState: 'disconnected' | 'connecting' | 'connected' | 'pairing' = '
 let pairingCodeRequested = false;
 let retryCount = 0;
 
+interface LogEntry {
+  id: string;
+  timestamp: string;
+  targetNumber: string;
+  success: boolean;
+  message: string;
+}
+
+let sendHistory: LogEntry[] = [];
+
+function addToHistory(log: Omit<LogEntry, 'id' | 'timestamp'>) {
+  sendHistory.unshift({
+    ...log,
+    id: Math.random().toString(36).substring(7),
+    timestamp: new Date().toISOString()
+  });
+  if (sendHistory.length > 10) sendHistory.pop();
+  io.emit('history-update', sendHistory);
+}
+
 // Delete auth state if user requests a full reset
 function clearAuthState() {
   const targetDir = path.resolve(process.cwd(), 'auth_info_baileys');
@@ -127,6 +147,7 @@ if (fs.existsSync(credsPath)) {
 // Socket.io for Realtime UI Updates
 io.on('connection', (socket) => {
   socket.emit('state', connectionState);
+  socket.emit('history-update', sendHistory);
   if (qrDataURL) socket.emit('qr', qrDataURL);
 
   socket.on('start', () => {
@@ -213,8 +234,10 @@ app.all('/api/send-otp', async (req, res) => {
     await sock.sendPresenceUpdate('paused', jid);
 
     await sock.sendMessage(jid, { text: textMessage });
+    addToHistory({ targetNumber: String(targetNumber), success: true, message: 'Delivered' });
     res.json({ success: true, message: `Message sent successfully to ${targetNumber}`, otp });
   } catch (error: any) {
+    addToHistory({ targetNumber: String(targetNumber), success: false, message: error.message || 'Failed' });
     res.status(500).json({ error: error.message });
   }
 });

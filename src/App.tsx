@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { QrCode, Smartphone, LogOut, Send, Loader2, CheckCircle2, Download } from 'lucide-react';
+import { QrCode, Smartphone, LogOut, Send, Loader2, CheckCircle2, Download, Clock } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -16,6 +16,7 @@ export default function App() {
   const [pairingMode, setPairingMode] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [logs, setLogs] = useState<any[]>([]);
   
   const [targetNumber, setTargetNumber] = useState('+919322461670');
   const [isSending, setIsSending] = useState(false);
@@ -45,6 +46,10 @@ export default function App() {
     socket.on('error-msg', (msg) => {
       setErrorMsg(msg);
       setTimeout(() => setErrorMsg(null), 5000);
+    });
+
+    socket.on('history-update', (updatedLogs) => {
+      setLogs(updatedLogs);
     });
 
     return () => {
@@ -357,6 +362,39 @@ export default function App() {
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* History Log Section */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold tracking-wide text-slate-500 uppercase">
+                    Recent OTP Deliveries
+                  </h3>
+                  <Clock className="w-4 h-4 text-slate-400" />
+                </div>
+                
+                {logs.length === 0 ? (
+                  <p className="text-sm text-slate-500 text-center py-4">No recent activity.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {logs.map((log) => (
+                      <div key={log.id} className="flex items-start justify-between p-3 bg-white border border-slate-200 rounded-xl">
+                        <div>
+                          <p className="text-sm font-medium text-slate-900 font-mono">{log.targetNumber}</p>
+                          <p className="text-xs text-slate-500 mt-1">{new Date(log.timestamp).toLocaleTimeString()}</p>
+                        </div>
+                        <div className={cn(
+                          "px-2.5 py-1 text-xs font-medium rounded-full border",
+                          log.success
+                            ? "bg-green-50 text-green-700 border-green-200" 
+                            : "bg-red-50 text-red-700 border-red-200"
+                        )}>
+                          {log.success ? 'Sent' : 'Failed'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
             </div>
