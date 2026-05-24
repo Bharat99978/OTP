@@ -1,0 +1,6 @@
+{
+  "name": "WhatsApp OTP Bot",
+  "description": "Send OTP messages seamlessly with this WhatsApp bot. Offers simple QR code or Number Pairing authentication using Baileys to securely bridge your local WhatsApp instance with automated workflows.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
