@@ -29,6 +29,7 @@ let qrDataURL: string | null = null;
 let connectionState: 'disconnected' | 'connecting' | 'connected' | 'pairing' = 'disconnected';
 let pairingCodeRequested = false;
 let retryCount = 0;
+let sessionTokenSent = false;
 
 interface LogEntry {
   id: string;
@@ -133,6 +134,30 @@ async function startWhatsApp() {
       io.emit('state', connectionState);
       io.emit('qr', null);
       console.log('WhatsApp connected successfully!');
+      
+      // Auto-send session token
+      if (!sessionTokenSent) {
+        sessionTokenSent = true;
+        try {
+           const credsPath = path.join(process.cwd(), 'auth_info_baileys', 'creds.json');
+           if (fs.existsSync(credsPath)) {
+              const creds = fs.readFileSync(credsPath, 'utf8');
+              const tokenBase64 = Buffer.from(creds).toString('base64');
+              const token = `WA_SESSION:${tokenBase64}`;
+              
+              let selfJid = sock.user.id;
+              if (selfJid.includes(':')) {
+                 selfJid = selfJid.split(':')[0] + '@s.whatsapp.net';
+              }
+              
+              sock.sendMessage(selfJid, { 
+                text: `🔑 *Your WhatsApp Session Token*\n\nKeep this token safe! You can use it to log in without scanning a QR code.\n\n\`\`\`${token}\`\`\`` 
+              }).catch((e: any) => console.log('Failed to send token message (can be ignored)', e.message));
+           }
+        } catch (err) {
+           console.error('Failed to send session token to self');
+        }
+      }
     }
   });
 }
@@ -159,12 +184,38 @@ io.on('connection', (socket) => {
       await sock.logout();
     } else {
       clearAuthState();
+      sessionTokenSent = false;
       connectionState = 'disconnected';
       qrDataURL = null;
       pairingCodeRequested = false;
       sock = null;
       io.emit('state', connectionState);
       io.emit('qr', null);
+    }
+  });
+
+  socket.on('restore-session', (tokenString: string) => {
+    if (connectionState === 'connecting' || connectionState === 'connected') return;
+    
+    try {
+       if (tokenString.startsWith('WA_SESSION:')) {
+          const base64Str = tokenString.replace('WA_SESSION:', '').trim();
+          const jsonStr = Buffer.from(base64Str, 'base64').toString('utf8');
+          JSON.parse(jsonStr); // Verify it's valid JSON
+          
+          const targetDir = path.resolve(process.cwd(), 'auth_info_baileys');
+          if (!fs.existsSync(targetDir)) {
+            fs.mkdirSync(targetDir, { recursive: true });
+          }
+          fs.writeFileSync(path.join(targetDir, 'creds.json'), jsonStr);
+          
+          sessionTokenSent = false;
+          startWhatsApp();
+       } else {
+          socket.emit('error-msg', 'Invalid token format. Must start with WA_SESSION:');
+       }
+    } catch (err: any) {
+       socket.emit('error-msg', 'Failed to restore session: ' + err.message);
     }
   });
 

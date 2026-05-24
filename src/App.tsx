@@ -13,9 +13,10 @@ let socket: Socket;
 export default function App() {
   const [connectionState, setConnectionState] = useState<'disconnected' | 'connecting' | 'connected' | 'pairing'>('disconnected');
   const [qrCode, setQrCode] = useState<string | null>(null);
-  const [pairingMode, setPairingMode] = useState(false);
+  const [pairingMode, setPairingMode] = useState<'qr' | 'code' | 'token'>('qr');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [sessionToken, setSessionToken] = useState('');
   const [logs, setLogs] = useState<any[]>([]);
   
   const [targetNumber, setTargetNumber] = useState('+919322461670');
@@ -70,6 +71,15 @@ export default function App() {
       return;
     }
     socket.emit('request-pairing', phoneNumber);
+  };
+
+  const handleRestoreSession = () => {
+    if (!sessionToken.startsWith('WA_SESSION:')) {
+      setErrorMsg('Invalid token format. Must start with WA_SESSION:');
+      setTimeout(() => setErrorMsg(null), 3000);
+      return;
+    }
+    socket.emit('restore-session', sessionToken);
   };
 
   const handleLogout = () => {
@@ -159,22 +169,28 @@ export default function App() {
                 <div className="flex flex-col items-center justify-center py-6 space-y-6">
                   
                   {/* Mode Toggles */}
-                  <div className="flex bg-slate-100 p-1 rounded-lg w-full max-w-sm">
+                  <div className="flex bg-slate-100 p-1 rounded-lg w-full max-w-sm shrink-0 flex-wrap gap-1">
                     <button
-                      onClick={() => setPairingMode(false)}
-                      className={cn("flex-1 py-1.5 text-sm font-medium rounded-md transition-shadow", !pairingMode ? 'bg-white shadow text-slate-900' : 'text-slate-500')}
+                      onClick={() => setPairingMode('qr')}
+                      className={cn("flex-1 whitespace-nowrap min-w-[30%] py-1.5 px-2 text-sm font-medium rounded-md transition-shadow", pairingMode === 'qr' ? 'bg-white shadow text-slate-900' : 'text-slate-500')}
                     >
                       Scan QR Code
                     </button>
                     <button
-                      onClick={() => setPairingMode(true)}
-                      className={cn("flex-1 py-1.5 text-sm font-medium rounded-md transition-shadow", pairingMode ? 'bg-white shadow text-slate-900' : 'text-slate-500')}
+                      onClick={() => setPairingMode('code')}
+                      className={cn("flex-1 whitespace-nowrap min-w-[30%] py-1.5 px-2 text-sm font-medium rounded-md transition-shadow", pairingMode === 'code' ? 'bg-white shadow text-slate-900' : 'text-slate-500')}
                     >
                       Pairing Code
                     </button>
+                    <button
+                      onClick={() => setPairingMode('token')}
+                      className={cn("flex-1 whitespace-nowrap min-w-[30%] py-1.5 px-2 text-sm font-medium rounded-md transition-shadow", pairingMode === 'token' ? 'bg-white shadow text-slate-900' : 'text-slate-500')}
+                    >
+                      Use Session Token
+                    </button>
                   </div>
 
-                  {!pairingMode ? (
+                  {pairingMode === 'qr' && (
                     // QR MODE
                     <div className="flex flex-col items-center">
                       {qrCode ? (
@@ -191,7 +207,9 @@ export default function App() {
                         Open WhatsApp on your phone &gt; Linked Devices &gt; Link a Device
                       </p>
                     </div>
-                  ) : (
+                  )}
+
+                  {pairingMode === 'code' && (
                     // PAIRING CODE MODE
                     <div className="w-full max-w-sm space-y-4">
                        {!pairingCode ? (
@@ -232,6 +250,31 @@ export default function App() {
                            </div>
                          </div>
                        )}
+                    </div>
+                  )}
+                  
+                  {pairingMode === 'token' && (
+                    <div className="w-full max-w-sm space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                          Restore from Token
+                        </label>
+                        <p className="text-xs text-slate-500 mb-3">Paste the WA_SESSION token you received to auto-login. The token begins with WA_SESSION:</p>
+                        <textarea
+                          rows={4}
+                          value={sessionToken}
+                          onChange={(e) => setSessionToken(e.target.value)}
+                          placeholder="WA_SESSION:eyJ..."
+                          className="w-full rounded-xl border border-slate-300 p-3 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono text-xs break-all"
+                        />
+                      </div>
+                      <button
+                        onClick={handleRestoreSession}
+                        disabled={!sessionToken}
+                        className="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-medium transition-colors disabled:opacity-50"
+                      >
+                        Restore Session
+                      </button>
                     </div>
                   )}
 
